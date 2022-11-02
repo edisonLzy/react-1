@@ -1,6 +1,7 @@
 'use strict';
 
 const rollup = require('rollup');
+const path = require('path');
 const babel = require('rollup-plugin-babel');
 const closure = require('./plugins/closure-plugin');
 const commonjs = require('rollup-plugin-commonjs');
@@ -185,7 +186,10 @@ function getRollupOutputOptions(
     freeze: !isProduction,
     interop: false,
     name: globalName,
-    sourcemap: false,
+    sourcemap: true,
+    sourcemapPathTransform(relativeSourcePath) {
+      return relativeSourcePath.replace('../../../../packages',path.resolve(__dirname,'../../packages'))
+    },
     esModule: false,
   };
 }
@@ -340,12 +344,6 @@ function getPlugins(
         bundle
       )
     ),
-    // Remove 'use strict' from individual source files.
-    {
-      transform(source) {
-        return source.replace(/['"]use strict["']/g, '');
-      },
-    },
     // Turn __DEV__ and process.env checks into constants.
     replace({
       __DEV__: isProduction ? 'false' : 'true',
@@ -361,50 +359,7 @@ function getPlugins(
     // I'm going to port "art" to ES modules to avoid this problem.
     // Please don't enable this for anything else!
     isUMDBundle && entry === 'react-art' && commonjs(),
-    // Apply dead code elimination and/or minification.
-    isProduction &&
-      closure({
-        compilation_level: 'SIMPLE',
-        language_in: 'ECMASCRIPT_2015',
-        language_out:
-          bundleType === BROWSER_SCRIPT ? 'ECMASCRIPT5' : 'ECMASCRIPT5_STRICT',
-        env: 'CUSTOM',
-        warning_level: 'QUIET',
-        apply_input_source_maps: false,
-        use_types_for_optimization: false,
-        process_common_js_modules: false,
-        rewrite_polyfills: false,
-        inject_libraries: false,
 
-        // Don't let it create global variables in the browser.
-        // https://github.com/facebook/react/issues/10909
-        assume_function_wrapper: !isUMDBundle,
-        renaming: !shouldStayReadable,
-      }),
-    // HACK to work around the fact that Rollup isn't removing unused, pure-module imports.
-    // Note that this plugin must be called after closure applies DCE.
-    isProduction && stripUnusedImports(pureExternalModules),
-    // Add the whitespace back if necessary.
-    shouldStayReadable &&
-      prettier({
-        parser: 'babel',
-        singleQuote: false,
-        trailingComma: 'none',
-        bracketSpacing: true,
-      }),
-    // License and haste headers, top-level `if` blocks.
-    {
-      renderChunk(source) {
-        return Wrappers.wrapBundle(
-          source,
-          bundleType,
-          globalName,
-          filename,
-          moduleType,
-          bundle.wrapWithModuleBoundaries
-        );
-      },
-    },
     // Record bundle size.
     sizes({
       getSize: (size, gzip) => {

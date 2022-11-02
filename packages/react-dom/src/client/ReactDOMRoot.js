@@ -142,6 +142,7 @@ ReactDOMHydrationRoot.prototype.render = ReactDOMRoot.prototype.render = functio
       }
     }
   }
+  // 入口
   updateContainer(children, root, null, null);
 };
 
